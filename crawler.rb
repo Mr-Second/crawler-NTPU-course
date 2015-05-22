@@ -3,20 +3,27 @@ require 'nokogiri'
 require 'json'
 require 'iconv'
 require 'uri'
+require 'pry'
+require 'capybara'
+require 'capybara/webkit'
 
 # 難得寫註解，總該碎碎念。
 class Crawler
+  include Capybara::DSL
   attr_reader :semester_list, :courses_list, :query_url, :result_url
 
   def initialize
-    @query_url = "https://sea.cc.ntpu.edu.tw/pls/dev_stud/course_query_all.queryByKeyword"
+    # @query_url = "https://sea.cc.ntpu.edu.tw/pls/dev_stud/course_query_all.queryByKeyword"
+    @query_url = "https://sea.cc.ntpu.edu.tw/pls/dev_stud/course_query_all.CHI_query_keyword"
     @front_url = "https://sea.cc.ntpu.edu.tw/pls/dev_stud/"
+    Capybara.current_driver = :webkit
+    Capybara.javascript_driver = :webkit
   end
 
-  def prepare_post_data
+  def prepare_post_data(year=103, term=2)
     post_data = {
-      :qYear => 103,
-      :qTerm => 2,
+      :qYear => year,
+      :qTerm => term,
       :cour => " ",
       :seq1 => "A",
       :seq2 => "M"
@@ -27,86 +34,75 @@ class Crawler
     nil
   end
 
-  def get_courses
-    # 初始 courses 陣列
-    @courses = []
-    puts "getting courses...\n"
-    # 一一點進去YO
-    @query_page.css('td:nth-of-type(2)').each_with_index do |row, index|
-      # get every link to every classification
-      # puts @front_url + row['href'].to_s
-      puts "now on index: #{index}"
-      puts @query_page.css('td:nth-of-type(7)')[index].text
-      semester = @query_page.css('td:nth-of-type(2)')[index].text
-      semester_year = @query_page.css('td:nth-of-type(3)')[index].text
-      course_number = @query_page.css('td:nth-of-type(4)')[index].text
-      must_learn_class = @query_page.css('td:nth-of-type(5)')[index].text
-      required_unrequired = @query_page.css('td:nth-of-type(6)')[index].text
-      course_name = @query_page.css('td:nth-of-type(7)')[index].text
-      teacher = @query_page.css('td:nth-of-type(8)')[index].text
-      classification = @query_page.css('td:nth-of-type(9)')[index].text
-      credit = @query_page.css('td:nth-of-type(10)')[index].text
-      hours = @query_page.css('td:nth-of-type(11)')[index].text
-      language = @query_page.css('td:nth-of-type(12)')[index].text
-      time_classroom = @query_page.css('td:nth-of-type(13)')[index].text
-      must_learn_limit = @query_page.css('td:nth-of-type(14)')[index].text
-      other_limit = @query_page.css('td:nth-of-type(15)')[index].text
-      all_limit = @query_page.css('td:nth-of-type(16)')[index].text
-      must_learn_chosen = @query_page.css('td:nth-of-type(17)')[index].text
-      other_chosen = @query_page.css('td:nth-of-type(18)')[index].text
-      all_chosen = @query_page.css('td:nth-of-type(19)')[index].text
-      authorized_students = @query_page.css('td:nth-of-type(20)')[index].text
-      wait_for_authorized = @query_page.css('td:nth-of-type(21)')[index].text
+  def crawl(year=103, term=2)
+    visit @query_url
 
-      r = RestClient.get @front_url + @query_page.css('td:nth-of-type(7)')[index].css('a').first['href'].to_s
-      ic = Iconv.new("utf-8//translit//IGNORE","big-5")
-      detail_page = Nokogiri::HTML(ic.iconv(r.to_s))
-
-      if detail_page.css('tr.font-g13:contains("Required") td').css('.font-c13').nil?
-        book = "none"
-      elsif detail_page.css('tr.font-g13:contains("Required") td').css('.font-c13').text == ""
-        book = "none"
-      else
-        book = detail_page.css('tr.font-g13:contains("Required") td').css('.font-c13').text
+    within 'form[name="bill"]' do
+      within 'select[name="qYear"]' do
+        first("option[value=\"#{year}\"]").select_option
       end
-      puts book
 
-      @courses << {
-        :semester => semester,
-        :semester_year => semester_year,
-        :course_number => course_number,
-        :must_learn_class => must_learn_class,
-        :required_unrequired => required_unrequired,
-        :course_name => course_name,
-        :teacher => teacher,
-        :classification => classification,
-        :credit => credit,
-        :hours => hours,
-        :language => language,
-        :time_classroom => time_classroom,
-        :must_learn_limit => must_learn_limit,
-        :other_limit => other_limit,
-        :all_limit => all_limit,
-        :must_learn_chosen => must_learn_chosen,
-        :other_chosen => other_chosen,
-        :all_chosen => all_chosen,
-        :authorized_students => authorized_students,
-        :wait_for_authorized => wait_for_authorized,
-        :book => book
-        }
+      within 'select[name="qTerm"]' do
+        first("option[value=\"#{term}\"]").select_option
+      end
+
+      first('input[name="cour"]').set ' '
+      click_on '送出查詢'
     end
 
-
+    page.switch_to_window(page.windows.last)
+    @query_page = Nokogiri::HTML(html)
   end
 
+  def get_courses
+    @courses = []
 
-  def save_to(filename='courses_p1.json')
+    @query_page.css('tbody')[1].css('tr:nth-child(2n+1)').each do |row|
+      datas = row.css('td')
+      datas[6] && datas[6].search('br').each {|d| d.replace("\n") }
+      datas[12] && datas[12].search('br').each {|d| d.replace("\n") }
+
+      periods = []
+      # Todos: 實習
+      if not ( datas[12] && datas[12].text.include?("未維護") )
+        # if datas[3] && datas[3].text.include?('N2032')
+        #   binding.pry
+        # end
+        datas[12].text.split("\n").each do |p_raw|
+          m = p_raw.match(/(實習)?每週(?<d>.)(?<s>\d+)~(?<e>\d+)\s(?<loc>.+)?/)
+          if !!m
+            (m[:s].to_i..m[:e].to_i).each do |period|
+               chars = []
+               chars << m[:d]
+               chars << period
+               chars << m[:loc]
+               periods << chars.join(',')
+            end
+          end
+        end
+      end
+
+      @courses << {
+        year: datas[1] && datas[1].text.to_i + 1911,
+        term: datas[2] && datas[2].text.to_i,
+        code: datas[3] && datas[3].text,
+        required: datas[5] && datas[5].text.include?('必'),
+        name: datas[6] && datas[6].text.split("\n")[0],
+        lecturer: datas[7] && datas[7].text.strip.split("\n").join(','),
+        credits: datas[9] && datas[9].text.to_i,
+        periods: periods,
+      }
+    end
+  end
+
+  def save_to(filename='courses.json')
     File.open(filename, 'w') {|f| f.write(JSON.pretty_generate(@courses))}
   end
 end
 
 
 crawler = Crawler.new
-crawler.prepare_post_data
+crawler.crawl(103, 1)
+# crawler.prepare_post_data(103, 1)
 crawler.get_courses
 crawler.save_to
