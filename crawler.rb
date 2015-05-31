@@ -95,10 +95,19 @@ class Crawler
       # code must be unique every term
       code = datas[3] && "#{@year}-#{@term}-#{datas[3].text}"
 
+      m = datas[4] && datas[4].text.strip.scan(/(?<dep>(\(進修\))?[^(\s|\d)]+)(?<group>(\d|[A-Z])+)?(\s+)?(有擋修)?/)
+      department = []
+      if !!m
+        department = m.map { |d| d[0] }
+      end
+      department.delete(" ")
+      department.uniq!
+
       @courses << {
         year: @year,
         term: @term,
         code: code,
+        department: department,
         required: datas[5] && datas[5].text.include?('必'),
         name: datas[6] && datas[6].text.split("\n")[0],
         lecturer: datas[7] && datas[7].text.strip.split("\n").join(','),
