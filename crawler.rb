@@ -109,8 +109,8 @@ class Crawler
         code: code,
         department: department,
         required: datas[5] && datas[5].text.include?('必'),
-        name: datas[6] && datas[6].text.split("\n")[0],
-        lecturer: datas[7] && datas[7].text.strip.split("\n").join(','),
+        name: datas[6] && datas[6].text.split("\n")[0].gsub(/ /, ''),
+        lecturer: datas[7] && datas[7].text.strip.split("\n").uniq.join(','),
         credits: datas[9] && datas[9].text.to_i,
         day_1: course_days[0],
         day_2: course_days[1],
@@ -145,6 +145,10 @@ class Crawler
 
   def save_to(filename='courses.json')
     File.open(filename, 'w') {|f| f.write(JSON.pretty_generate(@courses))}
+    File.open("ntpu_courses.json", 'w') do |f|
+      new_courses = @courses.select {|d| d[:department].count == 1 or d[:department].count == 0}.map {|d| d[:department] = d[:department][0] if d[:department]; d}
+      f.write(JSON.pretty_generate(new_courses))
+    end
   end
 
   def current_year
