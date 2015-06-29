@@ -1,1 +1,4 @@
-_courses.json
+*.json
+.env
+.DS_Store
+deprecated
