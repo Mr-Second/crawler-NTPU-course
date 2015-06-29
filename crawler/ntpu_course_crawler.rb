@@ -2,16 +2,12 @@ require 'json'
 require 'iconv'
 require 'crawler_rocks'
 
-require 'capybara'
-require 'capybara/poltergeist'
-
 require 'pry'
 
 require 'thread'
 require 'thwait'
 
 class NtpuCourseCrawler
-  # include Capybara::DSL
   include CrawlerRocks::DSL
 
   DAYS = {
@@ -37,18 +33,6 @@ class NtpuCourseCrawler
     @after_each_proc = after_each
 
     @ic = Iconv.new("utf-8//translit//IGNORE", "big5")
-
-    # Capybara.register_driver :poltergeist do |app|
-    #   Capybara::Poltergeist::Driver.new(app,  {
-    #     js_errors: false,
-    #     timeout: 300,
-    #     ignore_ssl_errors: true,
-    #     # debug: true
-    #   })
-    # end
-
-    # Capybara.javascript_driver = :poltergeist
-    # Capybara.current_driver = :poltergeist
   end
 
   def courses
@@ -216,5 +200,5 @@ class NtpuCourseCrawler
 
 end # end class NtpuCourseCrawler
 
-cc = NtpuCourseCrawler.new(year: 2014, term: 1)
-File.write('ntpu_courses.json', JSON.pretty_generate(cc.courses))
+# cc = NtpuCourseCrawler.new(year: 2014, term: 1)
+# File.write('ntpu_courses.json', JSON.pretty_generate(cc.courses))

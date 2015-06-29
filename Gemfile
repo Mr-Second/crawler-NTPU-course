@@ -6,6 +6,5 @@ gem 'iconv'
 
 gem 'pry'
 
-gem 'capybara'
-gem 'capybara-webkit'
-gem 'selenium-webdriver'
+gem 'crawler_rocks'
+gem 'web_task_runner'
